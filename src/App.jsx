@@ -14,11 +14,10 @@ import './App.css';
 import { 
   getLessons, createUser, createCertificate, getQuizzes,
   getUserProgress, updateOrCreateUserProgress, 
-  getUserByDeviceId // <-- Đảm bảo dòng này đã được import
+  getUserByDeviceId
 } from './services/app'; 
 
 function App() {
-  // Các state ban đầu sẽ được load từ backend sau khi có user_id
   const [screen, setScreen] = useState('home');
   const [level, setLevel] = useState('');
   const [day, setDay] = useState(1);
@@ -26,17 +25,16 @@ function App() {
   const [progress, setProgress] = useState({ day: 1, completed: [], passedDays: {} });
   const [quizResults, setQuizResults] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [notification, setNotification] = useState({ message: '', type: '' }); // Giữ lại state này nếu bạn muốn hiển thị thông báo dưới dạng UI
+  const [notification, setNotification] = useState({ message: '', type: '' });
   const [user, setUser] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
   const [isLoadingLessons, setIsLoadingLessons] = useState(false);
   const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true); // Trạng thái tải ban đầu của toàn ứng dụng
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  const hasLoadedInitialProgress = useRef(false); // Biến cờ để theo dõi việc initial load đã hoàn tất chưa
+  const hasLoadedInitialProgress = useRef(false);
 
-  // Lấy lessons từ API theo level
   useEffect(() => {
     const fetchLessons = async () => {
       if (!level || level === '') {
@@ -56,7 +54,7 @@ function App() {
         }
       } catch (error) {
         console.error('[App.jsx] Error fetching lessons:', error.message);
-        setNotification({ message: 'Error fetching lessons: ' + error.message, type: 'error' }); // Vẫn sử dụng notification state nếu muốn
+        setNotification({ message: 'Error fetching lessons: ' + error.message, type: 'error' });
         setTimeout(() => setNotification({ message: '', type: '' }), 3000);
       } finally {
         setIsLoadingLessons(false);
@@ -65,7 +63,6 @@ function App() {
     fetchLessons();
   }, [level]);
 
-  // Lấy quizzes từ API theo level
   useEffect(() => {
     const fetchQuizzesData = async () => {
       if (!level || level === '') {
@@ -109,7 +106,6 @@ function App() {
     fetchQuizzesData();
   }, [level]);
 
-  // Load progress và quizResults từ localStorage (chỉ là fallback, không còn là nguồn chính)
   useEffect(() => {
     try {
       const savedProgress = localStorage.getItem('progress');
@@ -123,7 +119,6 @@ function App() {
     }
   }, []);
 
-  // Lưu progress và quizResults vào localStorage (chỉ là fallback, không còn là nguồn chính)
   useEffect(() => {
     try {
       localStorage.setItem('progress', JSON.stringify(progress));
@@ -135,9 +130,7 @@ function App() {
     }
   }, [progress, quizResults]);
 
-  // --- HÀM KHỞI TẠO NGƯỜI DÙNG VÀ TẢI TIẾN ĐỘ TỪ BACKEND ---
   const initializeUserAndProgress = useCallback(async () => {
-    // Biến cờ này giúp hàm chỉ chạy một lần khi khởi tạo ứng dụng
     if (hasLoadedInitialProgress.current) {
       return; 
     }
@@ -146,7 +139,6 @@ function App() {
       let currentUser = null;
       let deviceId = localStorage.getItem('deviceId');
 
-      // 1. Lấy hoặc tạo deviceId trong localStorage
       if (!deviceId) {
         deviceId = `device-${Date.now()}`;
         localStorage.setItem('deviceId', deviceId);
@@ -155,12 +147,10 @@ function App() {
         console.log('Existing deviceId from localStorage:', deviceId);
       }
 
-      // 2. Thử tìm người dùng theo deviceId
       try {
-        currentUser = await getUserByDeviceId(deviceId); // <-- Hàm này cần được import
+        currentUser = await getUserByDeviceId(deviceId);
         console.log('Existing user found with this deviceId:', currentUser);
       } catch (findError) {
-        // Nếu getUserByDeviceId ném lỗi và lỗi đó là 'User not found' (hoặc status 404)
         if (findError.message && findError.message.includes('User not found')) {
           console.log('User not found for this deviceId. Creating a new user...');
           try {
@@ -170,10 +160,9 @@ function App() {
             console.error('Failed to create new user, possibly duplicate device_id:', createError);
             setNotification({ message: 'Failed to create user: ' + createError.message, type: 'error' });
             setTimeout(() => setNotification({ message: '', type: '' }), 3000);
-            throw createError; // Ném lỗi để khối catch bên ngoài xử lý
+            throw createError;
           }
         } else {
-          // Ném lỗi nếu không phải lỗi 'User not found' mà là lỗi khác
           console.error('Error during getUserByDeviceId:', findError);
           setNotification({ message: 'Error finding user: ' + findError.message, type: 'error' });
           setTimeout(() => setNotification({ message: '', type: '' }), 3000);
@@ -181,31 +170,27 @@ function App() {
         }
       }
       
-      // Nếu không có currentUser sau các bước trên, có nghĩa là có lỗi nghiêm trọng
       if (!currentUser || !currentUser._id) {
-          console.error('Failed to get or create a user. Cannot proceed with progress initialization.');
-          setNotification({ message: 'Failed to identify user for progress.', type: 'error' });
-          setTimeout(() => setNotification({ message: '', type: '' }), 3000);
-          throw new Error('Failed to identify or create user.');
+        console.error('Failed to get or create a user. Cannot proceed with progress initialization.');
+        setNotification({ message: 'Failed to identify user for progress.', type: 'error' });
+        setTimeout(() => setNotification({ message: '', type: '' }), 3000);
+        throw new Error('Failed to identify or create user.');
       }
 
-      setUser(currentUser); // Set user vào state
+      setUser(currentUser);
 
-      // 3. Lấy hoặc tạo tiến độ của người dùng
       let userProgressData = null;
       if (currentUser && currentUser._id) {
         try {
-          userProgressData = await getUserProgress(currentUser._id); // <-- Hàm này cần được import
+          userProgressData = await getUserProgress(currentUser._id);
           console.log('Fetched user progress:', userProgressData);
         } catch (progressFetchError) {
-          // Ghi log chi tiết lỗi, không ném lỗi nếu là 404
           console.warn('Error fetching user progress (might not exist):', progressFetchError.message);
           setNotification({ message: 'Error fetching progress: ' + progressFetchError.message, type: 'error' });
           setTimeout(() => setNotification({ message: '', type: '' }), 3000);
         }
       }
 
-      // Nếu không có tiến độ hoặc tiến độ rỗng, khởi tạo mặc định và lưu lên backend
       if (!userProgressData) {
         console.log('No existing progress for user, initializing default progress and saving to backend.');
         const defaultProgress = {
@@ -217,11 +202,10 @@ function App() {
           passed_days_details: {},
           quiz_results: {}
         };
-        userProgressData = await updateOrCreateUserProgress(currentUser._id, defaultProgress); // <-- Hàm này cần được import
+        userProgressData = await updateOrCreateUserProgress(currentUser._id, defaultProgress);
         console.log('Created default user progress on backend:', userProgressData);
       }
 
-      // Cập nhật state của ứng dụng với dữ liệu tiến độ
       if (userProgressData) {
         setLevel(userProgressData.current_level || '');
         setDay(userProgressData.current_day || 1);
@@ -243,18 +227,15 @@ function App() {
       setScreen('home');
     } finally {
       setIsInitialLoading(false);
-      hasLoadedInitialProgress.current = true; // Đảm bảo chỉ chạy một lần
+      hasLoadedInitialProgress.current = true;
     }
-  }, [user]); 
+  }, []); 
 
-  // Chạy hàm khởi tạo khi component mount lần đầu
   useEffect(() => {
     initializeUserAndProgress();
   }, [initializeUserAndProgress]);
 
-  // --- LƯU TRẠNG THÁI ỨNG DỤNG LÊN BACKEND MỖI KHI CÓ THAY ĐỔI ---
   useEffect(() => {
-    // Không lưu nếu user chưa được load hoặc đang ở màn hình loading ban đầu
     if (isInitialLoading || !user || !user._id || !level) {
       return;
     }
@@ -270,7 +251,7 @@ function App() {
         quiz_results: quizResults,
       };
       try {
-        await updateOrCreateUserProgress(user._id, progressToSave); // <-- Hàm này cần được import
+        await updateOrCreateUserProgress(user._id, progressToSave);
         console.log('Progress saved to backend successfully!', progressToSave);
       } catch (error) {
         console.error('Failed to save progress to backend:', error);
@@ -372,7 +353,7 @@ function App() {
       setNotification({ message: 'You need to pass the quiz for this day before reviewing!', type: 'error' });
       setTimeout(() => setNotification({ message: '', type: '' }), 3000);
     }
-  }, [level, progress.completed, validateLevel]); 
+  }, [progress.completed, validateLevel]); 
 
   const handleReviewScreen = useCallback(() => {
     if (progress.completed.length > 0) {
@@ -405,12 +386,11 @@ function App() {
     setScore(0);
     setProgress({ day: 1, completed: [], passedDays: {} });
     setQuizResults({});
-    setUser(null); // Reset user, sẽ tạo lại user mới khi load
+    setUser(null);
     try {
-      // Xóa tiến độ khỏi localStorage khi reset
       localStorage.removeItem('progress');
       localStorage.removeItem('quizResults');
-      localStorage.removeItem('deviceId'); // Xóa deviceId để tạo user mới
+      localStorage.removeItem('deviceId');
     } catch (error) {
       console.error('Error resetting progress in localStorage:', error.message);
       setNotification({ message: 'Error resetting progress: ' + error.message, type: 'error' });
@@ -419,7 +399,6 @@ function App() {
     setScreen('home');
     setNotification({ message: 'Learning progress has been reset!', type: 'success' });
     setTimeout(() => setNotification({ message: '', type: '' }), 3000);
-    // Sau khi reset, initializeUserAndProgress sẽ chạy lại
   }, []); 
 
   const handleBack = useCallback(() => {
@@ -457,7 +436,6 @@ function App() {
     }
   }
 
-  // --- Đảm bảo hiển thị màn hình loading ban đầu ---
   if (isInitialLoading) {
     return (
       <div className="app">
@@ -511,7 +489,7 @@ function App() {
             level={level}
             day={day}
             vocabulary={lessons.find((l) => l.day === day)?.vocabulary || []}
-            videoUrl={lessons.find((l) => l.day === day)?.video_url || 'https://www.youtube.com/embed/dQw4w9WgXcQ'} 
+            videoUrl={lessons.find((l) => l.day === day)?.video_url || ''} 
             onContinue={handleContinue}
             onBack={handleBack}
           />
@@ -524,7 +502,8 @@ function App() {
             questions={quizzes.find((q) => q.day === day)?.questions || []}
             onResult={handleQuizResult}
             onBack={handleBack}
-            videoUrl={lessons.find((l) => l.day === day)?.video_url || 'https://www.youtube.com/embed/dQw4w9WgXcQ'}
+            // <<< DÒNG NÀY ĐÃ BỊ XÓA ĐỂ SỬA LỖI >>>
+            // videoUrl={...} 
           />
         )}
         {screen === 'quiz' && isLoadingQuizzes && (

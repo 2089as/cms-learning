@@ -2,20 +2,33 @@ import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faQuestionCircle, faArrowLeft, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 
-// Hàm chuyển đổi URL YouTube sang định dạng embed
+/**
+ * Hàm chuyển đổi URL YouTube sang định dạng embed.
+ * - Nếu là URL YouTube chuẩn, nó sẽ chuyển sang dạng embed.
+ * - Nếu là URL dạng khác (như của bạn), nó sẽ được sử dụng trực tiếp,
+ * vì bạn đã xác nhận các URL đó hoạt động.
+ */
 const convertToEmbedUrl = (url) => {
+  if (!url || typeof url !== 'string') {
+    return ''; // Trả về chuỗi rỗng để iframe không bị lỗi
+  }
+
+  // Cố gắng tìm videoId từ các định dạng URL YouTube tiêu chuẩn
   const videoIdMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/[^\/]+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/);
-  const videoId = videoIdMatch ? videoIdMatch[1] : null;
-  return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  
+  // Nếu tìm thấy videoId chuẩn, tạo URL embed chuẩn
+  if (videoIdMatch && videoIdMatch[1]) {
+    return `https://www.youtube.com/embed/${videoIdMatch[1]}`;
+  }
+  
+  // Nếu không, giả sử URL của bạn hoạt động trực tiếp và trả về chính nó
+  return url;
 };
 
-function QuizScreen({ level, day, questions, onResult, onBack, videoUrl }) {
+function QuizScreen({ level, day, questions, onResult, onBack }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [feedback, setFeedback] = useState('');
-
-  // Chuyển đổi videoUrl sang định dạng embed
-  const embedVideoUrl = convertToEmbedUrl(videoUrl || 'https://www.youtube.com/embed/dQw4w9WgXcQ');
 
   const handleAnswerSelect = (questionId, option) => {
     setSelectedAnswers((prev) => ({
@@ -42,7 +55,7 @@ function QuizScreen({ level, day, questions, onResult, onBack, videoUrl }) {
   const handleSubmit = () => {
     let correctAnswers = 0;
     questions.forEach((q) => {
-      const selectedOptionValue = selectedAnswers[q.id];
+      const selectedOptionValue = selectedAnswers[q._id];
       const correctAnswerIndex = q.correctAnswer;
       if (selectedOptionValue === q.options[correctAnswerIndex]) {
         correctAnswers++;
@@ -58,9 +71,6 @@ function QuizScreen({ level, day, questions, onResult, onBack, videoUrl }) {
         <h2>
           <FontAwesomeIcon icon={faQuestionCircle} /> Day {day} - Quiz
         </h2>
-        <div className="progress">
-          <FontAwesomeIcon icon={faQuestionCircle} /> Level: {level} | Day: {day}/30
-        </div>
         <p>No questions available for this day. Please ensure quizzes are created and loaded correctly.</p>
         <button className="back-btn" onClick={onBack}>
           <FontAwesomeIcon icon={faArrowLeft} /> Back
@@ -71,6 +81,9 @@ function QuizScreen({ level, day, questions, onResult, onBack, videoUrl }) {
 
   const currentQuestion = questions[currentQuestionIndex];
   const allAnswered = Object.keys(selectedAnswers).length === questions.length;
+  
+  // Chuyển đổi URL video của câu hỏi hiện tại
+  const embedVideoUrl = convertToEmbedUrl(currentQuestion.videoUrl);
 
   return (
     <div className="screen">
@@ -78,35 +91,47 @@ function QuizScreen({ level, day, questions, onResult, onBack, videoUrl }) {
         <FontAwesomeIcon icon={faQuestionCircle} /> Day {day} - Quiz
       </h2>
       <div className="progress">
-        <FontAwesomeIcon icon={faQuestionCircle} /> Level: {level} | Day: {day}/30 | Question {currentQuestionIndex + 1}/{questions.length}
+        Level: {level === 'level_1' ? 'Beginner' : 'Intermediate'} | Day: {day}/30 | Question {currentQuestionIndex + 1}/{questions.length}
       </div>
-      <div className="video-container">
-        <iframe
-          src={embedVideoUrl} // Sử dụng URL đã chuyển đổi
-          title="Quiz Introduction"
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        ></iframe>
+
+      <div className="video-container" style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden' }}>
+        {embedVideoUrl ? (
+          <iframe
+            key={currentQuestion._id} // Thêm key để React re-render iframe khi video thay đổi
+            src={embedVideoUrl}
+            title={`Video for Question ${currentQuestionIndex + 1}`}
+            frameBorder="0"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+          ></iframe>
+        ) : (
+          <div style={{ background: '#000', color: '#fff', textAlign: 'center', paddingTop: '20%', height: '100%', position: 'absolute', top: 0, left: 0, width: '100%' }}>
+             <p>{currentQuestion.videoUrl ? 'Video link is invalid or unsupported.' : 'No video available for this question.'}</p>
+          </div>
+        )}
       </div>
-      <div key={currentQuestion.id} style={{ marginBottom: '15px' }}>
+
+      <div key={currentQuestion._id} style={{ marginBottom: '15px', marginTop: '1rem' }}>
         <p>Question {currentQuestionIndex + 1}: {currentQuestion.question}</p>
         {currentQuestion.options.map((option, index) => (
           <button
             key={index}
-            className={`option ${selectedAnswers[currentQuestion.id] === option ? 'selected' : ''}`}
-            onClick={() => handleAnswerSelect(currentQuestion.id, option)}
+            className={`option ${selectedAnswers[currentQuestion._id] === option ? 'selected' : ''}`}
+            onClick={() => handleAnswerSelect(currentQuestion._id, option)}
             style={{ margin: '5px' }}
           >
             {option}
           </button>
         ))}
       </div>
+
       {feedback && (
         <div style={{ color: feedback.includes('Congratulations') ? '#22c55e' : '#ef4444', margin: '10px 0' }}>
           {feedback}
         </div>
       )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
         <button
           onClick={handlePrevQuestion}
@@ -118,7 +143,7 @@ function QuizScreen({ level, day, questions, onResult, onBack, videoUrl }) {
         {currentQuestionIndex < questions.length - 1 ? (
           <button
             onClick={handleNextQuestion}
-            disabled={!selectedAnswers[currentQuestion.id]}
+            disabled={!selectedAnswers[currentQuestion._id]}
           >
             Next Question <FontAwesomeIcon icon={faArrowRight} />
           </button>
@@ -128,7 +153,8 @@ function QuizScreen({ level, day, questions, onResult, onBack, videoUrl }) {
           </button>
         )}
       </div>
-      <button className="back-btn" onClick={onBack}>
+
+      <button className="back-btn" onClick={onBack} style={{ marginTop: '10px' }}>
         <FontAwesomeIcon icon={faArrowLeft} /> Back
       </button>
     </div>
